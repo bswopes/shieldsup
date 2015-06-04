@@ -67,6 +67,8 @@ if ( $ret == "AUTH_ERR" ) {
 <tr>
 <td>Twitter username:</td>
 <td><input type="text" name="username"></td>
+<td><input type="checkbox" name="retweet" value="Retweet" checked>Retweets<br>
+<input type="checkbox" name="reply" value="Reply">Replies</td>
 <td><input type="submit" value="Submit"></td>
 </tr>
 </table>

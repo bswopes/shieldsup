@@ -53,10 +53,12 @@ if (strlen($username) < 1) {
 // send username to backend
 fwrite($sock, 'USER '.$username."\n");
 
-// these variables should be grabbed from post at a later date.
-// for now, use these defaults.
-fwrite($sock, "RT 1\n");
-fwrite($sock, "REPLY 0\n");
+    // Check RT/REPLY values from form submission
+    $retweet = (isset($_POST[retweet]) && $_POST[retweet] == "Retweet") ? 1 : 0;
+    $reply = (isset($_POST[reply]) && $_POST[reply] == "Reply") ? 1 : 0;
+
+fwrite($sock, "RT $retweet\n");
+fwrite($sock, "REPLY $reply\n");
 
 // kick off the backend processing
 fwrite($sock, "GO\n");
