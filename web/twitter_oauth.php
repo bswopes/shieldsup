@@ -1,49 +1,75 @@
 <?php
 
-include("conf.php");
+    include("conf.php");
+    require("twitteroauth/twitteroauth.php");
 
-mysql_connect($db_host, $db_user, $db_pass);
-mysql_select_db($db_name);
-
-require "twitteroauth/twitteroauth.php";
-
-session_start();
-
-// THIS IS THE UGLIEST CODE EVER BUT SOMEONE ELSE WROTE IT SO I DON'T FEEL BAD.
-// regardless, we should still fix it.
-// seriously i can barely read this crap.
+    session_start();
+    $mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name);
+    if ($mysqli->connect_errno) {
+        echo "Failed to connect to MySQL: (" . $mysqli->connect_errno . ") " . $mysqli->connect_error;
+    }
 
 if(!empty($_GET['oauth_verifier']) && !empty($_SESSION['oauth_token']) && !empty($_SESSION['oauth_token_secret'])){
-	// We've got everything we need
+
+    // We've got everything we need
 	// TwitterOAuth instance, with two new parameters we got in twitter_login.php
 	$twitteroauth = new TwitterOAuth($app_key, $app_secret, $_SESSION['oauth_token'], $_SESSION['oauth_token_secret']);
-	// Let's request the access token
+
+    // Let's request the access token
 	$access_token = $twitteroauth->getAccessToken($_GET['oauth_verifier']);
-	// Save it in a session var
-	$_SESSION['access_token'] = $access_token;
-	// Let's get the user's info
+
+    // Let's get the user's info
 	$user_info = $twitteroauth->get('account/verify_credentials');
 
-	if(isset($user_info->error)){
+	if(isset($user_info->error) || $user_info->id == 0 || !is_numeric($user_info->id)){
 		// Something's wrong, go back to square 1
 		header('Location: twitter_login.php');
 	} else {
 		// Let's find the user by its ID
-		// todo: error checking?! sanitize.
 		$query = mysql_query("SELECT * FROM tokens WHERE userid = ". $user_info->id);
 		$result = mysql_fetch_array($query);
- 
+
+        if (!($stmt = $mysqli->prepare("SELECT * FROM tokens WHERE userid = ?"))) {
+            echo "Prepare failed: (" . $mysqli->errno . ") " . $mysqli->error;
+        }
+        if (!$stmt->bind_param("i", {$user_info->id})) {
+            echo "Binding parameters failed: (" . $stmt->errno . ") " . $stmt->error;
+        }
+        if (!$stmt->execute()) {
+            echo "Execute failed: (" . $stmt->errno . ") " . $stmt->error;
+        }
+        $result = $stmt->get_result();
+
 		// If not, let's add it to the database
 		if(empty($result)){
-			// todo: this needs to be sanitized.
-			$query = mysql_query("INSERT INTO tokens (userid, oauth_token, oauth_secret, added) VALUES ('{$user_info->id}', '{$access_token['oauth_token']}', '{$access_token['oauth_token_secret']}', NOW())");
-			$query = mysql_query("SELECT * FROM tokens WHERE id = " . mysql_insert_id());
-			$result = mysql_fetch_array($query);
+
+            if (!($stmt = $mysqli->prepare("INSERT INTO tokens (userid, oauth_token, oauth_secret, added) VALUES (?, ?, ?, NOW())"))) {
+                echo "Prepare failed: (" . $mysqli->errno . ") " . $mysqli->error;
+            }
+            if (!$stmt->bind_param("iss", {$user_info->id},{$access_token['oauth_token']},{$access_token['oauth_token_secret']})) {
+               echo "Binding parameters failed: (" . $stmt->errno . ") " . $stmt->error;
+            }
+            if (!$stmt->execute()) {
+                echo "Execute failed: (" . $stmt->errno . ") " . $stmt->error;
+            }
+
+            $result = $mysqli->query("SELECT * FROM tokens WHERE id = " . $mysqli->insert_id);
+
+
 		} else {
 			// Update the tokens
-			$query = mysql_query("UPDATE tokens SET oauth_token = '{$access_token['oauth_token']}', oauth_secret = '{$access_token['oauth_token_secret']}', accessed = NOW() WHERE userid = {$user_info->id}");
+            if (!($stmt = $mysqli->prepare("UPDATE tokens SET oauth_token = ?, oauth_secret = ?, accessed = NOW() WHERE userid = ?"))) {
+                echo "Prepare failed: (" . $mysqli->errno . ") " . $mysqli->error;
+            }
+            if (!$stmt->bind_param("ssi", {$access_token['oauth_token']},{$access_token['oauth_token_secret']},{$user_info->id})) {
+                echo "Binding parameters failed: (" . $stmt->errno . ") " . $stmt->error;
+            }
+            if (!$stmt->execute()) {
+                echo "Execute failed: (" . $stmt->errno . ") " . $stmt->error;
+            }
 		}
- 
+
+        $_SESSION['access_token'] = $access_token;
 		$_SESSION['id'] = $result['id'];
 		$_SESSION['oauth_uid'] = $result['userid'];
 		$_SESSION['oauth_token'] = $result['oauth_token'];
