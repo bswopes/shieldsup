@@ -11,7 +11,7 @@
 
 <table>
 <tr>
-<td>Twitter username:</td>
+<td>Twitter username (source of unwanted attention):</td>
 <td><input type="text" name="username"></td>
 <td><input type="submit" value="Submit"></td>
 </tr>
